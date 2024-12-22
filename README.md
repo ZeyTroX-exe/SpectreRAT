@@ -17,29 +17,9 @@ Welcome to SpectreRAT, a remote administration tool (RAT) built by a 15-year-old
 7. Wi-Fi Info: Retrieve saved Wi-Fi profiles.
 
 # Requirements
-Before running, make sure to install Go and the following dependencies:
+Before running, make sure to install Go and all the dependencies:
 
-`go get github.com/atotto/clipboard`
-
-`go get github.com/go-toast/toast`
-
-`go get github.com/kbinani/screenshot`
-
-`go get github.com/lxn/walk`
-
-`go get github.com/moutend/go-hook/pkg/keyboard`
-
-`go get github.com/moutend/go-hook/pkg/types`
-
-`go get modernc.org/sqlite`
-
-`go get fyne.io/v2/fyne`
-
-`github.com/shirou/gopsutil/v4/cpu`
-
-`github.com/shirou/gopsutil/v4/host`
-
-`github.com/shirou/gopsutil/v4/mem`
+`go mod tidy`
  
 # Installation
 Install Go: Ensure Go is installed on your system.
