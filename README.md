@@ -2,13 +2,20 @@
 Welcome to SpectreRAT, a remote administration tool (RAT) built by a 15-year-old developer to explore networking and security concepts. This tool allows remote control of a machine, including keylogging, file management, and system monitoring.
 
 # Features
-System Info: Fetch details like IP address, country, username, and OS.
-Screen Capture: Stream the screen to the server.
-Keystroke Logging: Capture and send keystrokes back.
-Clipboard Access: Access clipboard data.
-File Operations: Upload and download files from the target machine.
-Browser Info: Extract saved passwords from browsers like Chrome and Brave.
-Wi-Fi Info: Retrieve saved Wi-Fi profiles.
+1. System Info: Fetch details like IP address, country, username, and OS.
+
+2. Screen Capture: Stream the screen to the server.
+
+3. Keystroke Logging: Capture and send keystrokes back.
+
+4. Clipboard Access: Access clipboard data.
+
+5. File Operations: Upload and download files from the target machine.
+
+6. Browser Info: Extract saved passwords from browsers like Chrome and Brave.
+
+7. Wi-Fi Info: Retrieve saved Wi-Fi profiles.
+
 # Requirements
 Before running, make sure to install Go and the following dependencies:
 
