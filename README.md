@@ -35,8 +35,6 @@ Before running, make sure to install Go and the following dependencies:
 
 `go get fyne.io/v2/fyne`
 
-`go get fyne.io/v2/fyne`
-
 `github.com/shirou/gopsutil/v4/cpu`
 
 `github.com/shirou/gopsutil/v4/host`
