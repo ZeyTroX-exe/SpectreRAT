@@ -518,7 +518,7 @@ func main() {
 						exec.Command("go.exe", "build", "--ldflags", "-s -H windowsgui", "build.go").Run()
 						Building.SetText(Building.Text + "[+] Compilation completed successfully.\n")
 						time.Sleep(time.Millisecond * 200)
-						Building.SetText(Building.Text + "[+] Cleaning up.\n")
+						Building.SetText(Building.Text + "[+] Cleanup in progress...\n")
 						os.Remove("go.mod")
 						os.Remove("go.sum")
 						os.Remove("build.go")
