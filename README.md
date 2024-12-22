@@ -54,9 +54,7 @@ Install Go: Ensure Go is installed on your system.
 
 `go run server.go`
 
-4. Run the Client: Build and run the client agent on the target machine with:
-
-`go run client.go`
+4. Run the Client: Build and run the client agent on the target machine using the build tab.
 
 # Important
 This tool is intended for educational purposes only. Use it responsibly and legally. The goal is to learn about programming, networking, and security.
