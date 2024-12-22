@@ -496,7 +496,7 @@ func main() {
 					Building.SetText(Building.Text + "[+] Building process initialised.\n")
 					data, err := os.ReadFile("lib/client.req")
 					if err != nil {
-						Building.SetText(Building.Text + "[-] Client code not found.\n")
+						Building.SetText(Building.Text + "[-] Client code not found.\n\n")
 					} else {
 						os.Mkdir("build", 0644)
 						os.Chdir("build")
