@@ -16,13 +16,13 @@ Before running the code, you need the following libraries:
 
 Third-Party Libraries: Install the required libraries by running the following commands:
 
-`go get github.com/atotto/clipboard
-go get github.com/go-toast/toast
-go get github.com/kbinani/screenshot
-go get github.com/lxn/walk
-go get github.com/moutend/go-hook/pkg/keyboard
-go get github.com/moutend/go-hook/pkg/types
-go get modernc.org/sqlite`
+`go get github.com/atotto/clipboard`
+`go get github.com/go-toast/toast`
+`go get github.com/kbinani/screenshot`
+`go get github.com/lxn/walk`
+`go get github.com/moutend/go-hook/pkg/keyboard`
+`go get github.com/moutend/go-hook/pkg/types`
+`go get modernc.org/sqlite`
 
 # Important
 This tool is intended for educational purposes only. Don't use it for anything illegal. The goal is to learn about programming and security, not cause harm.
