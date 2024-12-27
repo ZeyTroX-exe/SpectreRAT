@@ -71,7 +71,7 @@ func writeCommand(command string) {
 }
 
 func handleServer() {
-	server, err := net.Listen("tcp", "0.0.0.0:8080")
+	server, err := net.Listen("tcp", "0.0.0.0:3000")
 	if err != nil {
 		os.Exit(1)
 	}
