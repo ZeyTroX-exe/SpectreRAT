@@ -84,7 +84,7 @@ func handleServer() {
 		info, err := NewConn.reader.ReadString('\n')
 		if err != nil {
 			removeClient(&selected)
-		} else {
+		} else if strings.Contains(info, ";") {
 			addClient(&NewConn, info)
 			go handleClient(&NewConn)
 		}
