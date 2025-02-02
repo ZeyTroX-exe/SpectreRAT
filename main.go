@@ -235,7 +235,6 @@ func readAll(EOF string) string {
 
 func main() {
 	myApp = app.New()
-	myApp.Settings().SetTheme(theme.LightTheme())
 
 	myWindow = myApp.NewWindow("Spectre")
 	myWindow.Resize(fyne.NewSize(900, 600))
