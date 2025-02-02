@@ -332,7 +332,7 @@ func sysInfo() {
 	cpuInfo, _ := cpu.Info()
 	hostInfo, _ := host.Info()
 
-	DATA.WriteString(fmt.Sprintf("=========================[SYSTEM]=========================\nOS: %v (%v)\nArchitecure: %v (%v)\nHostname: %v\nFull Name: %v\nHome: %v\nUser ID: %v\nRAM: %v GB\nCPU: %v (%v cores)\nEnvironment: %v\n%v\n%v\n\n",
+	DATA.WriteString(fmt.Sprintf("=========================[SYSTEM]=========================\nOS: %v (%v)\nArchitecure: %v (%v)\nHostname: %v\nFull Name: %v\nHome: %v\nUser ID: %v\nRAM: %v GB\nCPU: %v (%v cores)\nEnvironment: %v\n\n%v\n\n%v\n\n",
 		hostInfo.Platform,
 		hostInfo.PlatformVersion,
 		runtime.GOARCH,
