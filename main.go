@@ -131,7 +131,7 @@ func removeClient(client *Connection) {
 			tableData = append(tableData[:i+1], tableData[i+2:]...)
 			mutex.Unlock()
 			connects--
-			go notify("Client disconected!", fmt.Sprintf("%v timed out!", client.ip))
+			go notify("Client disconnected!", fmt.Sprintf("%v timed out!", client.ip))
 		}
 	}
 	table.Refresh()
