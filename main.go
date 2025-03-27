@@ -23,7 +23,6 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/go-toast/toast"
 	"github.com/ulikunitz/xz"
 )
 
@@ -60,13 +59,7 @@ type Connection struct {
 }
 
 func notify(title string, message string) {
-	notification := toast.Notification{
-		AppID:   "Spectre",
-		Title:   title,
-		Message: message,
-		Audio:   toast.SMS,
-	}
-	notification.Push()
+	myApp.SendNotification(&fyne.Notification{title, message})
 }
 
 func writeCommand(command string) {
@@ -254,7 +247,7 @@ func readAll(EOF string) string {
 }
 
 func main() {
-	myApp = app.New()
+	myApp = app.NewWithID("Spectre")
 
 	myWindow = myApp.NewWindow("Spectre")
 	myWindow.Resize(fyne.NewSize(900, 600))
