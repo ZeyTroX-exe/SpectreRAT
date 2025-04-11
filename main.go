@@ -584,7 +584,7 @@ func main() {
 			container.NewVBox(
 				widget.NewLabelWithStyle("Responses", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 				Display,
-				widget.NewCard("", "", widget.NewButton("Save Log", func() {
+				widget.NewCard("", "", widget.NewButton("Save Response", func() {
 					os.WriteFile(fmt.Sprintf("%v@response.log", time.Now().Format("02.01")), []byte(Display.Text), 0644)
 					dialog.NewInformation("Response Saved!", fmt.Sprintf("Log saved in '%v@response.log'.", time.Now().Format("02.01")), myWindow).Show()
 					exec.Command("explorer.exe", ".\\").Start()
