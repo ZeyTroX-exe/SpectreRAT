@@ -334,23 +334,6 @@ func main() {
 			}
 		}),
 
-		widget.NewButtonWithIcon("Camera Share", theme.MediaVideoIcon(), func() {
-			if selected.conn != nil {
-				dialog.NewCustomConfirm("Camera Share", "Start", "Stop", widget.NewLabel("Select Method..."), func(b bool) {
-					if b && !streaming {
-						writeCommand("\x16")
-						writeCommand("1")
-					} else if streaming && !b {
-						writeCommand("\x16")
-						writeCommand("0")
-						streaming = false
-					}
-				}, myWindow).Show()
-			} else {
-				err.Show()
-			}
-		}),
-
 		widget.NewButtonWithIcon("Open Url", theme.MailAttachmentIcon(), func() {
 			if selected.conn != nil && !streaming {
 				myEntry1.SetPlaceHolder("URL...")
@@ -466,16 +449,6 @@ func main() {
 			if selected.conn != nil {
 				if !streaming {
 					writeCommand("\x08")
-				}
-			} else {
-				err.Show()
-			}
-		}),
-
-		widget.NewButtonWithIcon("Snap", theme.MediaPhotoIcon(), func() {
-			if selected.conn != nil {
-				if !streaming {
-					writeCommand("\x17")
 				}
 			} else {
 				err.Show()
